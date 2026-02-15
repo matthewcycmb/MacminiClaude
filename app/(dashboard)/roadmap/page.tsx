@@ -2,12 +2,56 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
+import { useState, useEffect } from "react"
+import { School } from "lucide-react"
 
 export default function RoadmapPage() {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [roadmap, setRoadmap] = useState<any>(null)
+  const [loadingRoadmap, setLoadingRoadmap] = useState(true)
 
-  // Mock roadmap data
+  // Load roadmap on initial page load
+  useEffect(() => {
+    // Check if roadmap is cached in session storage
+    const cachedRoadmap = sessionStorage.getItem('userRoadmap')
+    if (cachedRoadmap) {
+      try {
+        setRoadmap(JSON.parse(cachedRoadmap))
+        setLoadingRoadmap(false)
+        console.log("✅ Loaded roadmap from cache (no API call)")
+        return
+      } catch (e) {
+        console.error("Failed to parse cached roadmap:", e)
+      }
+    }
+
+    // No cache found, generate new roadmap
+    loadRoadmap()
+  }, [])
+
+  const loadRoadmap = async () => {
+    setLoadingRoadmap(true)
+    try {
+      console.log("🔄 Generating new roadmap (API call)")
+      const response = await fetch("/api/ai/generate-roadmap", { method: "POST" })
+      const data = await response.json()
+      if (data.success && data.roadmap) {
+        setRoadmap(data.roadmap)
+        // Cache the roadmap in session storage
+        sessionStorage.setItem('userRoadmap', JSON.stringify(data.roadmap))
+        console.log("✅ Roadmap cached for this session")
+      } else {
+        console.error("Failed to load roadmap:", data)
+      }
+    } catch (error) {
+      console.error("Error loading roadmap:", error)
+    } finally {
+      setLoadingRoadmap(false)
+    }
+  }
+
+  // Mock roadmap data (fallback)
   const mockRoadmap = {
     title: "Your College Application Roadmap",
     description: "Personalized plan for Junior Year student",
@@ -50,6 +94,18 @@ export default function RoadmapPage() {
             status: "pending",
           },
           {
+            id: 7,
+            title: "Research Stanford CS + Social Good program",
+            description: "Explore Stanford's unique CS program focusing on social impact",
+            category: "research",
+            priority: "high",
+            isQuickWin: false,
+            pointsValue: 25,
+            status: "pending",
+            collegeName: "Stanford University",
+            collegeId: "stanford-123",
+          },
+          {
             id: 4,
             title: "Identify 2 teachers for recommendations",
             description: "Choose teachers who know you well and can speak to your strengths",
@@ -88,6 +144,18 @@ export default function RoadmapPage() {
             pointsValue: 25,
             status: "pending",
           },
+          {
+            id: 8,
+            title: "Draft MIT 'Why MIT' supplemental essay",
+            description: "Write about specific programs and opportunities at MIT that interest you (250 words)",
+            category: "essays",
+            priority: "high",
+            isQuickWin: false,
+            pointsValue: 50,
+            status: "pending",
+            collegeName: "MIT",
+            collegeId: "mit-456",
+          },
         ],
       },
     ],
@@ -95,14 +163,26 @@ export default function RoadmapPage() {
 
   const handleRegenerateRoadmap = async () => {
     setIsGenerating(true)
+    // Clear cache to force fresh generation
+    sessionStorage.removeItem('userRoadmap')
+
     try {
+      console.log("🔄 Regenerating roadmap (API call)")
       const response = await fetch("/api/ai/generate-roadmap", { method: "POST" })
       const data = await response.json()
       console.log("Generated roadmap:", data)
-      alert("Roadmap regenerated! (Check console for details)")
+
+      if (data.success && data.roadmap) {
+        setRoadmap(data.roadmap)
+        // Update cache with new roadmap
+        sessionStorage.setItem('userRoadmap', JSON.stringify(data.roadmap))
+        alert("✅ Roadmap regenerated successfully!")
+      } else {
+        alert("⚠️ Error: " + (data.error || data.message || "Unknown error"))
+      }
     } catch (error) {
       console.error("Error:", error)
-      alert("Error generating roadmap")
+      alert("❌ Error generating roadmap: " + (error instanceof Error ? error.message : "Unknown error"))
     } finally {
       setIsGenerating(false)
     }
@@ -132,13 +212,32 @@ export default function RoadmapPage() {
     return colors[priority] || "bg-gray-100 text-gray-700"
   }
 
+  // Use real roadmap if available, otherwise fallback to mock
+  const displayRoadmap = roadmap || mockRoadmap
+
+  if (loadingRoadmap) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="text-4xl mb-4">⏳</div>
+            <p className="text-gray-600">Loading your personalized roadmap...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex justify-between items-start mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{mockRoadmap.title}</h1>
-          <p className="text-gray-600 mt-1">{mockRoadmap.description}</p>
+          <h1 className="text-3xl font-bold text-gray-900">{displayRoadmap.title}</h1>
+          <p className="text-gray-600 mt-1">{displayRoadmap.description}</p>
+          {roadmap && (
+            <p className="text-xs text-green-600 mt-1">✅ Personalized based on your profile</p>
+          )}
         </div>
         <Button onClick={handleRegenerateRoadmap} disabled={isGenerating}>
           {isGenerating ? "Regenerating..." : "🔄 Regenerate Roadmap"}
@@ -147,8 +246,8 @@ export default function RoadmapPage() {
 
       {/* Timeline */}
       <div className="space-y-8">
-        {mockRoadmap.phases.map((phase, phaseIndex) => (
-          <Card key={phase.id}>
+        {displayRoadmap.phases.map((phase: any, phaseIndex: number) => (
+          <Card key={phase.id || `phase-${phaseIndex}`}>
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
@@ -162,9 +261,9 @@ export default function RoadmapPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {phase.tasks.map((task) => (
+                {phase.tasks.map((task: any, taskIndex: number) => (
                   <div
-                    key={task.id}
+                    key={task.id || taskIndex}
                     className={`p-4 border rounded-lg hover:shadow-md transition ${
                       task.status === "completed"
                         ? "bg-green-50 border-green-200"
@@ -182,7 +281,7 @@ export default function RoadmapPage() {
                         <p className="text-sm text-gray-600 mb-3">
                           {task.description}
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span
                             className={`text-xs px-2 py-1 rounded-full ${getCategoryColor(
                               task.category
@@ -197,6 +296,12 @@ export default function RoadmapPage() {
                           >
                             {task.priority}
                           </span>
+                          {(task as any).collegeName && (
+                            <Badge variant="outline" className="text-xs flex items-center gap-1 bg-indigo-50 border-indigo-300 text-indigo-700">
+                              <School className="h-3 w-3" />
+                              {(task as any).collegeName}
+                            </Badge>
+                          )}
                           <span className="text-xs text-gray-500">
                             +{task.pointsValue} points
                           </span>
@@ -226,7 +331,7 @@ export default function RoadmapPage() {
       </div>
 
       {/* Empty State */}
-      {mockRoadmap.phases.length === 0 && (
+      {displayRoadmap.phases.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <div className="text-6xl mb-4">🗺️</div>

@@ -57,3 +57,66 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .glass-input {
+    @apply bg-white/40 backdrop-blur-md border border-black/5 shadow-sm transition-all duration-300;
+  }
+  .glass-input:focus-within {
+    @apply bg-white/80 border-forest-700/20 ring-0 shadow-[0_12px_32px_rgba(0,0,0,0.06)];
+  }
+  .glass-card {
+    @apply bg-white/50 backdrop-blur-2xl border border-white/60 shadow-[0_24px_80px_rgba(0,0,0,0.02)];
+  }
+  .bento-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.5rem;
+  }
+  .impact-tracking {
+    letter-spacing: -0.04em;
+  }
+  .sub-tracking {
+    letter-spacing: 0.01em;
+  }
+}
+
+.vapor-blob {
+  position: fixed;
+  width: 1400px;
+  height: 1400px;
+  border-radius: 50%;
+  filter: blur(160px);
+  opacity: 0.35;
+  z-index: 0;
+  pointer-events: none;
+}
+.vapor-left {
+  background: radial-gradient(circle at center, #EAE7E0 0%, #DED9CF 100%);
+  left: -20%;
+  top: -15%;
+}
+.vapor-right {
+  background: radial-gradient(circle at center, #F4F2EB 0%, #E9E5DA 100%);
+  right: -20%;
+  bottom: -15%;
+}
+.vapor-green-1 {
+  background: radial-gradient(circle at center, #EAE7E0 0%, #DED9CF 100%);
+  left: -10%;
+  top: -10%;
+}
+.vapor-green-2 {
+  background: radial-gradient(circle at center, #F4F2EB 0%, #E9E5DA 100%);
+  right: -10%;
+  bottom: -10%;
+}
+.grain {
+  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+  filter: contrast(140%) brightness(100%);
+  mix-blend-mode: multiply;
+}
+
+details summary::-webkit-details-marker {
+  display: none;
+}

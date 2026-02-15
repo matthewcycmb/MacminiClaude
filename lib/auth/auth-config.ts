@@ -1,11 +1,12 @@
+import { NextAuthOptions } from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/db/prisma"
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcrypt"
 
-export const authOptions = {
-  adapter: PrismaAdapter(prisma) as any,
+export const authOptions: NextAuthOptions = {
+  // adapter: PrismaAdapter(prisma) as any, // Commented out - using JWT sessions instead
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",

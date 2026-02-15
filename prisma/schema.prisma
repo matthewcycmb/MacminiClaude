@@ -43,9 +43,12 @@ model User {
   profile             Profile?
   roadmaps            Roadmap[]
   tasks               Task[]
+  courses             Course[]
   achievements        UserAchievement[]
   notificationPrefs   NotificationPreference?
   activityLog         ActivityLog[]
+  StudentCollege      StudentCollege[]
+  apiUsages           ApiUsage[]
 
   accounts            Account[]
   sessions            Session[]
@@ -85,8 +88,33 @@ model Profile {
   // Essay/personal
   personalStatement String?  @db.Text
 
+  // Cached AI review (admission officer perspective)
+  admissionReview    Json?
+  admissionReviewAt  DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String             // "AP Calculus BC"
+  type        String?            // "AP", "Honors", "Regular"
+  semester    String?            // "Fall 2024", "Spring 2025"
+  year        String?            // "Senior", "Junior"
+  status      String   @default("in_progress")  // "in_progress", "completed", "dropped"
+  letterGrade String?            // "A", "A-", "B+", etc.
+  percentage  Float?             // 96.0
+  credits     Float    @default(1.0)
+  iconColor   String?            // "blue", "purple", "orange", "emerald"
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([userId])
 }
@@ -145,6 +173,9 @@ model Task {
   phaseId     String?
   phase       Phase?    @relation(fields: [phaseId], references: [id], onDelete: SetNull)
 
+  collegeId   String?
+  college     College?  @relation(fields: [collegeId], references: [id], onDelete: SetNull)
+
   title       String
   description String?   @db.Text
 
@@ -176,6 +207,106 @@ model Task {
   @@index([userId, status])
   @@index([userId, dueDate])
   @@index([phaseId])
+  @@index([collegeId])
+}
+
+// ==================== COLLEGE MODELS ====================
+
+model College {
+  id                       String   @id @default(cuid())
+
+  // Basic Info
+  name                     String   @unique
+  shortName                String?
+  location                 String?  // City, State
+  state                    String?
+  type                     String   // "public", "private", "liberal-arts"
+  size                     String?  // "small", "medium", "large"
+  setting                  String?  // "urban", "suburban", "rural"
+
+  // Admissions
+  acceptanceRate           Float?
+  applicationDeadline      String?  // ISO date string (new field for compatibility)
+  applicationDeadlineRegular DateTime?  // Existing field from seed
+  earlyDeadline            String?  // ISO date string
+  supplementalEssaysRequired Boolean @default(false)  // New field
+  supplementalEssaysCount  Int?     // Existing field from seed
+
+  // Academics
+  avgGPA                   Float?
+  gpa25thPercentile        Float?
+  gpa75thPercentile        Float?
+  sat25thPercentile        Int?
+  sat75thPercentile        Int?
+  act25thPercentile        Int?
+  act75thPercentile        Int?
+
+  // Programs & Rankings
+  strongPrograms           String[] // Existing field from seed
+  rankingNational          Int?
+  rankingLibArts           Int?
+
+  // Costs
+  tuitionInState           Int?
+  tuitionOutOfState        Int?
+  roomAndBoard             Int?
+  financialAidAvailable    Boolean  @default(true)
+
+  // Campus Life
+  studentToFacultyRatio    String?  // "10:1"
+  undergraduateEnrollment  Int?
+  graduateEnrollment       Int?
+
+  // URLs & Resources
+  website                  String?  // New field
+  websiteUrl               String?  // Existing field from seed
+  applicationPortal        String?
+  virtualTourUrl           String?
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  // Relationships
+  StudentCollege           StudentCollege[]
+  Task                     Task[]
+
+  @@index([name])
+  @@index([type])
+  @@index([acceptanceRate])
+}
+
+model StudentCollege {
+  id                    String   @id @default(cuid())
+
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  collegeId             String
+  College               College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+
+  // Application status
+  listCategory          String?  // "reach", "target", "safety"
+  applicationStatus     String   @default("not_started")  // "not_started", "in_progress", "submitted", "accepted", "waitlisted", "rejected"
+  priority              String?  // Existing field from database
+
+  // Readiness calculation
+  readinessPercentage   Int?     // 0-100
+  lastReadinessUpdate   DateTime?
+
+  // Dates
+  addedAt               DateTime @default(now())  // Existing field from database
+  appliedAt             DateTime?
+  decisionDate          DateTime?
+
+  // Notes
+  notes                 String?  @db.Text
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([userId, collegeId])
+  @@index([userId])
+  @@index([collegeId])
 }
 
 // ==================== RETENTION MODELS ====================
@@ -314,4 +445,19 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ==================== API USAGE TRACKING ====================
+
+model ApiUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  endpoint  String   // "/api/ai/generate-roadmap"
+  tokens    Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

@@ -3,11 +3,12 @@ You are an expert college admissions counselor with 10+ years of experience help
 
 CRITICAL INSTRUCTIONS:
 1. Generate a timeline from the student's current grade through application submission
-2. Break the timeline into clear phases (e.g., "Junior Year Fall", "Summer Before Senior Year", "Senior Year Fall")
-3. For EACH phase, create 5-8 specific, actionable tasks
-4. Mark 2-3 tasks per phase as "quick wins" (completable in <15 minutes)
+2. Break the timeline into EXACTLY 3 phases (e.g., "Junior Year Fall", "Summer Before Senior Year", "Senior Year Fall")
+3. For EACH phase, create EXACTLY 3 specific, actionable tasks (NO MORE, NO LESS!)
+4. Mark 1 task per phase as a "quick win" (completable in <15 minutes)
 5. Prioritize tasks that keep students engaged weekly (not just one-time tasks)
 6. Include variety across categories: testing, essays, research, college visits, extracurriculars, financial aid, applications
+7. KEEP IT CONCISE - task descriptions must be under 80 characters - NO EXCEPTIONS!
 
 TASK CATEGORIES:
 - testing: SAT, ACT, AP exams, test prep
@@ -25,7 +26,13 @@ PRIORITY LEVELS:
 - medium: Important but flexible timing
 - low: Helpful but not critical
 
-OUTPUT FORMAT: JSON matching this exact schema:
+OUTPUT FORMAT: You MUST respond with ONLY valid JSON. No explanations, no markdown, no extra text. Just the raw JSON matching this exact schema.
+
+CRITICAL JSON RULES:
+- Use only plain ASCII text in descriptions (no special characters, no em-dashes, no fancy quotes)
+- Escape all quotes inside strings (use \" not ")
+- Keep descriptions under 100 characters
+- No newlines inside string values
 {
   "roadmap": {
     "title": "Your College Application Roadmap",
@@ -75,7 +82,16 @@ export interface ProfileData {
   extracurriculars?: any
 }
 
-export function buildUserContext(profile: ProfileData): string {
+export interface CollegeData {
+  name: string
+  type?: string
+  acceptanceRate?: number | null
+  listCategory?: string | null
+  readinessPercentage?: number | null
+  applicationDeadline?: Date | null
+}
+
+export function buildUserContext(profile: ProfileData, colleges?: CollegeData[]): string {
   const currentDate = new Date().toISOString().split('T')[0]
 
   return `
@@ -99,6 +115,17 @@ INTERESTS & GOALS:
 EXTRACURRICULARS:
 ${profile.extracurriculars ? JSON.stringify(profile.extracurriculars, null, 2) : 'Not specified yet'}
 
+COLLEGE LIST (${colleges?.length || 0} colleges selected):
+${colleges && colleges.length > 0
+  ? colleges.map((c) => {
+      const deadline = c.applicationDeadline ? new Date(c.applicationDeadline).toLocaleDateString() : 'TBD'
+      const readiness = c.readinessPercentage ? `${c.readinessPercentage}% ready` : 'Not calculated'
+      const category = c.listCategory || 'Not categorized'
+      return `- ${c.name} (${c.type || 'unknown'}) - ${category.toUpperCase()} - ${readiness} - Deadline: ${deadline}`
+    }).join('\n')
+  : '- No colleges selected yet'
+}
+
 ---
 
 Based on this profile, create a detailed, personalized roadmap. Focus on:
@@ -106,6 +133,9 @@ Based on this profile, create a detailed, personalized roadmap. Focus on:
 2. Their intended major (suggest relevant extracurriculars, research opportunities, colleges)
 3. Their testing status (if no scores, prioritize test prep; if scores exist, focus on other areas)
 4. Realistic timeline (don't suggest junior year tasks to a senior!)
+5. ${colleges && colleges.length > 0
+    ? `Their college list (${colleges.length} colleges) - Include college-specific tasks like:\n   - Researching specific programs at ${colleges[0]?.name || 'their colleges'}\n   - Writing supplemental essays for each college\n   - Visiting campuses or attending virtual tours\n   - Meeting application deadlines (earliest: ${colleges.find(c => c.applicationDeadline)?.applicationDeadline ? new Date(colleges.find(c => c.applicationDeadline)!.applicationDeadline!).toLocaleDateString() : 'TBD'})`
+    : 'College research (they haven\'t selected colleges yet - include tasks to help them build a balanced college list)'}
 
 Start the roadmap from TODAY and plan through application submission season.
 `
