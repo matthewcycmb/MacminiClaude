@@ -315,10 +315,9 @@ export default function ActivityBoosterPage() {
                         <span className="material-symbols-outlined text-xl" aria-hidden="true">auto_awesome</span>
                       </div>
                       <div className="space-y-4">
-                        <div
-                          className="bg-white/60 backdrop-blur-md rounded-3xl rounded-tl-none p-6 text-[15px] leading-relaxed shadow-sm border border-white/40"
-                          dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
-                        />
+                        <div className="bg-white/60 backdrop-blur-md rounded-3xl rounded-tl-none p-6 text-[15px] leading-relaxed shadow-sm border border-white/40">
+                          <SafeMessage text={msg.content} />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -436,13 +435,23 @@ export default function ActivityBoosterPage() {
   )
 }
 
-/** Convert markdown-like bold and newlines to HTML */
-function formatMessage(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\*\*(.+?)\*\*/g, '<span class="font-bold">$1</span>')
-    .replace(/\n\n/g, "<br/><br/>")
-    .replace(/\n/g, "<br/>")
+/** Safely render markdown-like bold and newlines without dangerouslySetInnerHTML */
+function SafeMessage({ text }: { text: string }) {
+  const lines = text.split("\n")
+  return (
+    <div>
+      {lines.map((line, li) => (
+        <span key={li}>
+          {li > 0 && <br />}
+          {line.split(/(\*\*.+?\*\*)/g).map((segment, si) =>
+            segment.startsWith("**") && segment.endsWith("**") ? (
+              <span key={si} className="font-bold">{segment.slice(2, -2)}</span>
+            ) : (
+              <span key={si}>{segment}</span>
+            )
+          )}
+        </span>
+      ))}
+    </div>
+  )
 }

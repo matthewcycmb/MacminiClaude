@@ -66,13 +66,6 @@ export async function POST(req: NextRequest) {
     console.log("Generating roadmap for profile:", profileData)
     console.log("Student has", colleges.length, "colleges selected")
 
-    // Check if API key is set (with enhanced debugging)
-    console.log("API Key Status:", {
-      exists: !!process.env.ANTHROPIC_API_KEY,
-      length: process.env.ANTHROPIC_API_KEY?.length || 0,
-      prefix: process.env.ANTHROPIC_API_KEY?.substring(0, 10) || 'N/A'
-    })
-
     if (!process.env.ANTHROPIC_API_KEY) {
       console.error("CRITICAL: ANTHROPIC_API_KEY not set - returning mock roadmap")
       console.error("Check: 1) .env file exists, 2) dev server restarted, 3) no .env.local override")

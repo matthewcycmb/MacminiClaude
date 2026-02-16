@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { VoiceRecorder } from "@/components/voice/VoiceRecorder"
 import { ACTIVITY_QUESTIONS } from "@/lib/constants/brain-dump-questions"
@@ -15,6 +15,7 @@ import {
   Moon,
   Sun,
 } from "lucide-react"
+import { toast } from "sonner"
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -53,35 +54,76 @@ export default function OnboardingPage() {
   ]
 
   const progressWidths = ["w-1/4", "w-2/4", "w-3/4", "w-full"]
+  const DRAFT_KEY = "onboarding_draft"
+  const initialized = useRef(false)
 
-  // Pre-fill from landing page quick start
+  // Restore draft from localStorage on mount
   useEffect(() => {
+    if (initialized.current) return
+    initialized.current = true
+
+    // Check quick start first (takes priority)
     const quickStartData = sessionStorage.getItem("quickStart")
     if (quickStartData) {
       try {
         const data = JSON.parse(quickStartData)
         if (data.gradeLevel) setGradeLevel(data.gradeLevel)
         if (data.location) setLocation(data.location)
-
-        // Calculate graduation year based on grade level
         if (data.gradeLevel) {
           const currentYear = new Date().getFullYear()
           const grade = parseInt(data.gradeLevel)
           const yearsUntilGrad = 12 - grade + 1
           setGraduationYear((currentYear + yearsUntilGrad).toString())
         }
-
-        // Clear the session storage after using it
         sessionStorage.removeItem("quickStart")
+        return
       } catch (error) {
         console.error("Error parsing quick start data:", error)
       }
     }
+
+    // Restore saved draft
+    try {
+      const draft = localStorage.getItem(DRAFT_KEY)
+      if (draft) {
+        const d = JSON.parse(draft)
+        if (d.step) setStep(d.step)
+        if (d.gradeLevel) setGradeLevel(d.gradeLevel)
+        if (d.graduationYear) setGraduationYear(d.graduationYear)
+        if (d.location) setLocation(d.location)
+        if (d.gpa) setGpa(d.gpa)
+        if (d.gpaScale) setGpaScale(d.gpaScale)
+        if (d.satScore) setSatScore(d.satScore)
+        if (d.actScore) setActScore(d.actScore)
+        if (d.intendedMajor) setIntendedMajor(d.intendedMajor)
+        if (d.careerInterests) setCareerInterests(d.careerInterests)
+        if (d.transcript) setTranscript(d.transcript)
+        toast.info("Draft restored from your last session")
+      }
+    } catch {
+      // Ignore parse errors
+    }
   }, [])
+
+  // Auto-save draft to localStorage (debounced)
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const saveDraft = useCallback(() => {
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ step, gradeLevel, graduationYear, location, gpa, gpaScale, satScore, actScore, intendedMajor, careerInterests, transcript })
+      )
+    }, 800)
+  }, [step, gradeLevel, graduationYear, location, gpa, gpaScale, satScore, actScore, intendedMajor, careerInterests, transcript])
+
+  useEffect(() => {
+    if (initialized.current) saveDraft()
+  }, [saveDraft])
 
   const handleProcessTranscript = async () => {
     if (!transcript.trim()) {
-      alert("Please speak or type something about your activities first.")
+      toast.error("Please speak or type something about your activities first.")
       return
     }
 
@@ -98,11 +140,11 @@ export default function OnboardingPage() {
         setActivities(data.activities)
         setHasProcessed(true)
       } else {
-        alert("Error processing your activities. Please try again.")
+        toast.error("Error processing your activities. Please try again.")
       }
     } catch (error) {
       console.error("Error:", error)
-      alert("Error processing your activities. Please try again.")
+      toast.error("Error processing your activities. Please try again.")
     } finally {
       setIsProcessing(false)
     }
@@ -141,17 +183,20 @@ export default function OnboardingPage() {
         })
 
         if (response.ok) {
+          // Clear saved draft
+          localStorage.removeItem(DRAFT_KEY)
+
           // Generate initial roadmap
           await fetch("/api/ai/generate-roadmap", { method: "POST" })
 
           // Redirect to dashboard
           router.push("/dashboard")
         } else {
-          alert("Error saving profile. Please try again.")
+          toast.error("Error saving profile. Please try again.")
         }
       } catch (error) {
         console.error("Error:", error)
-        alert("Error saving profile. Please try again.")
+        toast.error("Error saving profile. Please try again.")
       } finally {
         setIsLoading(false)
       }

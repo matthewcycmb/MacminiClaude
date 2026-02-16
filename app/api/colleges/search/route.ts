@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth/auth-config"
 import { prisma } from "@/lib/db/prisma"
 
 // GET /api/colleges/search?q=stanford
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const searchParams = request.nextUrl.searchParams
     const query = searchParams.get("q") || ""
 

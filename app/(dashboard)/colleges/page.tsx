@@ -8,6 +8,7 @@ import { CollegeCard } from "@/components/colleges/CollegeCard"
 import { CollegeSearchModal } from "@/components/colleges/CollegeSearchModal"
 import { ReadinessModal } from "@/components/colleges/ReadinessModal"
 import { Plus, Loader2, GraduationCap } from "lucide-react"
+import { toast } from "sonner"
 import type { ReadinessAssessment } from "@/lib/ai/prompts/readiness-calculator"
 
 interface College {
@@ -78,11 +79,11 @@ export default function CollegesPage() {
         await fetchColleges()
       } else {
         const data = await response.json()
-        alert(data.error || "Failed to add college")
+        toast.error(data.error || "Failed to add college")
       }
     } catch (error) {
       console.error("Error adding college:", error)
-      alert("Failed to add college")
+      toast.error("Failed to add college")
     }
   }
 
@@ -95,11 +96,11 @@ export default function CollegesPage() {
       if (response.ok) {
         setColleges((prev) => prev.filter((c) => c.id !== studentCollegeId))
       } else {
-        alert("Failed to remove college")
+        toast.error("Failed to remove college")
       }
     } catch (error) {
       console.error("Error removing college:", error)
-      alert("Failed to remove college")
+      toast.error("Failed to remove college")
     }
   }
 
@@ -125,11 +126,11 @@ export default function CollegesPage() {
         await fetchColleges()
       } else {
         const data = await response.json()
-        alert(data.error || "Failed to calculate readiness")
+        toast.error(data.error || "Failed to calculate readiness")
       }
     } catch (error) {
       console.error("Error calculating readiness:", error)
-      alert("Failed to calculate readiness")
+      toast.error("Failed to calculate readiness")
     }
   }
 

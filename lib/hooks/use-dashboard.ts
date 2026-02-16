@@ -62,6 +62,7 @@ interface DashboardData {
     fitScore: number
     aiInsight: string
     strongPrograms: string[]
+    officerTake: string
   }>
 }
 

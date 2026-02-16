@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/auth-config"
 import { prisma } from "@/lib/db/prisma"
+import { z } from "zod"
+
+const profileSchema = z.object({
+  gradeLevel: z.string().min(1).max(10),
+  graduationYear: z.number().int().min(2024).max(2035),
+  location: z.string().min(1).max(200),
+  gpa: z.number().min(0).max(5.0).nullable().optional(),
+  gpaScale: z.number().refine((v) => [4.0, 5.0, 100].includes(v)).optional(),
+  satScore: z.number().int().min(400).max(1600).nullable().optional(),
+  actScore: z.number().int().min(1).max(36).nullable().optional(),
+  intendedMajors: z.array(z.string().max(100)).max(10).optional(),
+  careerInterests: z.array(z.string().max(100)).max(10).optional(),
+  extracurriculars: z.any().nullable().optional(),
+})
 
 export async function GET(req: NextRequest) {
   try {
@@ -38,8 +52,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    console.log("Profile data received:", body)
+    const raw = await req.json()
+    const parsed = profileSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+    const body = parsed.data
 
     // Get user by email
     const user = await prisma.user.findUnique({

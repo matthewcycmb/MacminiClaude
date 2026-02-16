@@ -15,6 +15,23 @@ const opportunityCache = new Map<
   { data: Record<string, unknown>[]; timestamp: number }
 >()
 const SERVER_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+const MAX_CACHE_ENTRIES = 200
+
+function setCacheEntry(key: string, data: Record<string, unknown>[]) {
+  // Evict expired entries first, then oldest if still over limit
+  if (opportunityCache.size >= MAX_CACHE_ENTRIES) {
+    const now = Date.now()
+    for (const [k, v] of opportunityCache) {
+      if (now - v.timestamp > SERVER_CACHE_TTL) opportunityCache.delete(k)
+    }
+    // If still over limit, delete oldest entry
+    if (opportunityCache.size >= MAX_CACHE_ENTRIES) {
+      const oldestKey = opportunityCache.keys().next().value
+      if (oldestKey) opportunityCache.delete(oldestKey)
+    }
+  }
+  opportunityCache.set(key, { data, timestamp: Date.now() })
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -88,7 +105,7 @@ export async function GET(req: NextRequest) {
     const startTime = Date.now()
     const message = await anthropic.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: [
         {
           type: "text",
@@ -115,6 +132,16 @@ export async function GET(req: NextRequest) {
       durationMs: duration,
     })
 
+    // Check if the response was truncated
+    if (message.stop_reason === "max_tokens") {
+      console.error("Opportunity radar response was truncated (max_tokens reached)")
+      return NextResponse.json({
+        success: true,
+        opportunities: getMockOpportunities(profileData),
+        _truncated: true,
+      })
+    }
+
     const content = message.content[0]
     if (content.type !== "text") {
       throw new Error("Unexpected response type from Claude")
@@ -130,7 +157,7 @@ export async function GET(req: NextRequest) {
       if (match) jsonText = match[1].trim()
     }
 
-    if (!jsonText.startsWith("{")) {
+    if (!jsonText.startsWith("{") && !jsonText.startsWith("[")) {
       const match = jsonText.match(/\{[\s\S]*\}/)
       if (match) jsonText = match[0]
     }
@@ -141,11 +168,21 @@ export async function GET(req: NextRequest) {
     } catch (parseError) {
       console.error("JSON parse error:", parseError)
       console.error("Raw response (first 500):", jsonText.substring(0, 500))
-      throw new Error("Failed to parse AI response")
+      // Fall back to mock data instead of crashing
+      return NextResponse.json({
+        success: true,
+        opportunities: getMockOpportunities(profileData),
+        _parseError: true,
+      })
     }
 
+    // Handle both {opportunities: [...]} and direct array formats
+    const rawOpportunities = Array.isArray(data)
+      ? data
+      : data.opportunities || []
+
     // Validate and filter: every opportunity must have a real URL
-    const validOpportunities = (data.opportunities || []).map(
+    const validOpportunities = rawOpportunities.map(
       (opp: Record<string, unknown>) => ({
         ...opp,
         // Ensure url is always a non-empty string or null
@@ -156,11 +193,8 @@ export async function GET(req: NextRequest) {
       })
     )
 
-    // Store in server cache
-    opportunityCache.set(user.id, {
-      data: validOpportunities,
-      timestamp: Date.now(),
-    })
+    // Store in server cache (bounded)
+    setCacheEntry(user.id, validOpportunities)
 
     return NextResponse.json({
       success: true,

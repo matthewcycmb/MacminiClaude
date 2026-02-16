@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
 import { School } from "lucide-react"
+import { toast } from "sonner"
 
 export default function RoadmapPage() {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -161,6 +162,26 @@ export default function RoadmapPage() {
     ],
   }
 
+  const handleMarkComplete = (phaseIndex: number, taskIndex: number) => {
+    const source = roadmap || mockRoadmap
+    const updated = {
+      ...source,
+      phases: source.phases.map((phase: any, pi: number) =>
+        pi === phaseIndex
+          ? {
+              ...phase,
+              tasks: phase.tasks.map((task: any, ti: number) =>
+                ti === taskIndex ? { ...task, status: "completed" } : task
+              ),
+            }
+          : phase
+      ),
+    }
+    setRoadmap(updated)
+    sessionStorage.setItem("userRoadmap", JSON.stringify(updated))
+    toast.success("Task marked as complete!")
+  }
+
   const handleRegenerateRoadmap = async () => {
     setIsGenerating(true)
     // Clear cache to force fresh generation
@@ -176,13 +197,13 @@ export default function RoadmapPage() {
         setRoadmap(data.roadmap)
         // Update cache with new roadmap
         sessionStorage.setItem('userRoadmap', JSON.stringify(data.roadmap))
-        alert("✅ Roadmap regenerated successfully!")
+        toast.success("Roadmap regenerated successfully!")
       } else {
-        alert("⚠️ Error: " + (data.error || data.message || "Unknown error"))
+        toast.error(data.error || data.message || "Unknown error")
       }
     } catch (error) {
       console.error("Error:", error)
-      alert("❌ Error generating roadmap: " + (error instanceof Error ? error.message : "Unknown error"))
+      toast.error("Error generating roadmap: " + (error instanceof Error ? error.message : "Unknown error"))
     } finally {
       setIsGenerating(false)
     }
@@ -316,7 +337,7 @@ export default function RoadmapPage() {
                         {task.status === "completed" ? (
                           <div className="text-green-600 font-medium">✓ Done</div>
                         ) : (
-                          <Button size="sm" variant="outline">
+                          <Button size="sm" variant="outline" onClick={() => handleMarkComplete(phaseIndex, taskIndex)}>
                             Mark Complete
                           </Button>
                         )}

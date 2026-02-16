@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Mic, MicOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { toast } from "sonner"
 
 interface VoiceRecorderProps {
   onTranscriptChange: (transcript: string) => void
@@ -55,7 +56,7 @@ export function VoiceRecorder({ onTranscriptChange, transcript }: VoiceRecorderP
     recognition.onerror = (event: any) => {
       console.error("Speech recognition error:", event.error)
       if (event.error === "not-allowed") {
-        alert("Microphone access denied. Please enable microphone permissions and try again.")
+        toast.error("Microphone access denied. Please enable microphone permissions and try again.")
       }
       setIsRecording(false)
     }

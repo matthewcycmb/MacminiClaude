@@ -1,18 +1,38 @@
 import { ProfileData, CollegeData } from "./roadmap-generator"
 
 export const STRATEGIC_PATHWAYS_SYSTEM_PROMPT = `
-You are an expert college admissions strategist and career counselor with deep expertise in helping students craft compelling application narratives. Your role is to analyze a student's academic profile, interests, extracurricular activities, and career goals to generate 3 distinct, personalized strategic pathway recommendations.
+You are an expert college admissions strategist who creates DEEPLY PERSONALIZED pathway recommendations. You analyze every detail of a student's profile — their specific activities, years of commitment, location, coursework, grades, and test scores — to craft pathways that feel like they were written by a counselor who knows this student personally.
 
-Each pathway represents a coherent narrative direction the student could pursue to strengthen their college application and position themselves uniquely among applicants.
+Each pathway represents a coherent narrative direction the student could pursue to strengthen their college application.
 
 CRITICAL INSTRUCTIONS:
 1. Generate EXACTLY 3 pathway recommendations
-2. Each pathway MUST be based on the student's actual profile data - no generic suggestions
-3. Confidence scores should reflect how well the pathway aligns with existing profile strengths
-4. Pathways should be creative yet realistic combinations of the student's interests and strengths
-5. The first pathway should be the strongest match (highest confidence)
-6. Each pathway must be DISTINCT - different angles on the student's profile
-7. Suggest relevant majors and college tiers that genuinely match each pathway
+2. The first pathway should be the strongest match (highest confidence)
+3. Each pathway must be DISTINCT — different narrative angles on the same profile
+4. Confidence scores must reflect actual profile alignment, not aspirational fit
+
+PERSONALIZATION RULES (MANDATORY — pathways that ignore these will be rejected):
+1. DESCRIPTION must reference at least 1 specific activity or academic strength BY NAME (e.g., "Building on your 2 years leading Robotics Club" not "Building on your technical interests")
+2. KEY STRENGTHS must cite concrete evidence from the profile (e.g., "3.9 GPA with AP Chemistry and AP Bio" not "Strong academic record")
+3. NEXT STEPS must be actionable and location-aware when relevant (e.g., "Apply to UBC summer research program near Vancouver" not "Find a summer program")
+4. Use the student's actual years of experience, hours committed, and roles held to calibrate confidence scores
+5. If the student has a specific location, at least 1 pathway's nextSteps should reference local opportunities
+
+BAD EXAMPLE (too generic — DO NOT do this):
+{
+  "title": "Tech Innovator",
+  "description": "Leveraging your technical interests to build innovative solutions",
+  "keyStrengths": ["Strong technical aptitude", "Growing field with high demand"],
+  "nextSteps": ["Build a portfolio project", "Seek a summer internship"]
+}
+
+GOOD EXAMPLE (deeply personalized — DO THIS):
+{
+  "title": "Civic Technologist",
+  "description": "Your 2 years in Robotics Club plus community tutoring uniquely positions you to build tech that serves communities",
+  "keyStrengths": ["2yr robotics commitment at 8hrs/wk shows deep technical skill", "3.8 GPA with AP CS and AP Calc demonstrates quantitative rigor"],
+  "nextSteps": ["Apply to Vancouver's CityHacks civic hackathon this spring", "Propose a tutoring-app project to your Robotics Club advisor"]
+}
 
 PATHWAY CONFIDENCE SCORING:
 - 90-99%: Strong existing alignment (multiple interests/activities already point here)
@@ -32,37 +52,33 @@ ICON SELECTION - Use ONLY these Material Symbols Outlined icon names:
 - public, language, diversity_3 (International/Social)
 
 COLOR THEMES (use one per pathway, do NOT repeat):
-- emerald
-- blue
-- amber
-- purple
-- rose
-- cyan
+- emerald, blue, amber, purple, rose, cyan
 
-OUTPUT FORMAT: You MUST respond with ONLY valid JSON. No explanations, no markdown, no extra text. Just the raw JSON.
+OUTPUT FORMAT: You MUST respond with ONLY valid JSON. No explanations, no markdown, no extra text.
 
 CRITICAL JSON RULES:
 - Use only plain ASCII text in all strings (no special characters, no em-dashes, no fancy quotes)
 - Escape all quotes inside strings
 - Keep title to 2-3 words max
-- Keep description under 120 characters
+- Keep description under 150 characters — but it MUST reference specific profile details
 - Keep relatedMajors to 2-3 items max
 - Keep targetTier to a short phrase
-- Keep keyStrengths and nextSteps to 2-3 items each, each under 60 characters
+- Keep keyStrengths to 2-3 items, each under 80 characters, citing specific profile data
+- Keep nextSteps to 2-3 items, each under 80 characters, with actionable specifics
 - No newlines inside string values
 
 {
   "pathways": [
     {
       "title": "Creative 2-3 word pathway name",
-      "description": "Concise description of this strategic direction for the student",
+      "description": "Description referencing specific activities, courses, or strengths by name",
       "confidence": 94,
       "icon": "material_symbol_name",
       "colorTheme": "emerald",
       "relatedMajors": ["Major 1", "Major 2"],
       "targetTier": "Ideal college tier description",
-      "keyStrengths": ["Existing strength from profile", "Another strength"],
-      "nextSteps": ["Specific action to take", "Another action"]
+      "keyStrengths": ["Specific evidence from profile", "Another concrete strength"],
+      "nextSteps": ["Specific, actionable step with names/locations", "Another concrete action"]
     }
   ]
 }
@@ -231,22 +247,64 @@ Create a DETAILED 3-phase roadmap for this student to pursue the "${pathway.titl
 `
 }
 
+export interface CourseData {
+  name: string
+  type?: string | null
+  letterGrade?: string | null
+  percentage?: number | null
+}
+
 export function buildStrategicPathwaysContext(
   profile: ProfileData,
-  colleges?: CollegeData[]
+  colleges?: CollegeData[],
+  courses?: CourseData[],
+  honors?: string[],
+  awards?: string[],
+  leadership?: string[]
 ): string {
   const currentDate = new Date().toISOString().split("T")[0]
 
+  // Build rich extracurricular details including descriptions and achievements
   const extracurricularsText = profile.extracurriculars
     ? Array.isArray(profile.extracurriculars)
-      ? (profile.extracurriculars as Array<{ name?: string; role?: string; category?: string; hoursPerWeek?: number; years?: number }>)
-          .map(
-            (a) =>
-              `- ${a.name || "Activity"} (${a.role || "Member"}, ${a.category || "other"}, ${a.hoursPerWeek || 0}hrs/wk, ${a.years || 0}yrs)`
-          )
+      ? (profile.extracurriculars as Array<{
+          name?: string
+          role?: string
+          category?: string
+          hoursPerWeek?: number
+          years?: number
+          description?: string
+          achievements?: string[]
+          status?: string
+        }>)
+          .map((a) => {
+            let line = `- ${a.name || "Activity"}: ${a.role || "Member"}, ${a.category || "other"}, ${a.hoursPerWeek || 0}hrs/wk, ${a.years || 0}yrs`
+            if (a.status) line += `, ${a.status}`
+            if (a.description) line += `\n  Description: ${a.description}`
+            if (a.achievements?.length) line += `\n  Achievements: ${a.achievements.join("; ")}`
+            return line
+          })
           .join("\n")
       : JSON.stringify(profile.extracurriculars)
     : "None specified"
+
+  // Build coursework section with grades
+  const courseworkText = courses?.length
+    ? courses
+        .map((c) => {
+          let line = `- ${c.name}`
+          if (c.type) line += ` (${c.type})`
+          if (c.letterGrade) line += ` — Grade: ${c.letterGrade}`
+          else if (c.percentage) line += ` — ${c.percentage}%`
+          return line
+        })
+        .join("\n")
+    : null
+
+  // Build honors/awards/leadership sections
+  const honorsText = honors?.length ? honors.join(", ") : null
+  const awardsText = awards?.length ? awards.join(", ") : null
+  const leadershipText = leadership?.length ? leadership.join(", ") : null
 
   return `
 STUDENT PROFILE (as of ${currentDate}):
@@ -261,12 +319,16 @@ ACADEMICS:
 - SAT Score: ${profile.satScore || "Not taken yet"}
 - ACT Score: ${profile.actScore || "Not taken yet"}
 - AP Courses: ${profile.apCourses?.length ? profile.apCourses.join(", ") : "Not specified"}
+${courseworkText ? `\nCURRENT/RECENT COURSEWORK:\n${courseworkText}` : ""}
+${honorsText ? `\nHONORS: ${honorsText}` : ""}
+${awardsText ? `\nAWARDS: ${awardsText}` : ""}
+${leadershipText ? `\nLEADERSHIP POSITIONS: ${leadershipText}` : ""}
 
 INTERESTS & GOALS:
 - Intended Major(s): ${profile.intendedMajors?.length ? profile.intendedMajors.join(", ") : "Undecided"}
 - Career Interests: ${profile.careerInterests?.length ? profile.careerInterests.join(", ") : "Exploring options"}
 
-EXTRACURRICULAR ACTIVITIES:
+EXTRACURRICULAR ACTIVITIES (with full details):
 ${extracurricularsText}
 
 COLLEGE LIST (${colleges?.length || 0} colleges):
@@ -283,13 +345,11 @@ ${
 
 ---
 
-Based on this student's complete profile, generate 3 PERSONALIZED strategic pathway recommendations. Each pathway should:
-1. Build on the student's ACTUAL interests, activities, and academic strengths
-2. Suggest a compelling narrative angle for college applications
-3. Recommend specific majors and college tiers that fit the pathway
-4. Identify existing strengths and concrete next steps
-5. Be genuinely distinct from each other (different angles on the profile)
-
-The pathways should feel like they were crafted by a counselor who deeply understands this specific student.
+Based on this student's COMPLETE profile above, generate 3 DEEPLY PERSONALIZED strategic pathway recommendations. You MUST:
+1. Reference this student's SPECIFIC activities, courses, and achievements by name
+2. Use their location (${profile.location || "unknown"}) to suggest local opportunities in nextSteps
+3. Ground keyStrengths in actual profile data (GPA, specific courses, activity durations)
+4. Make nextSteps concrete enough to act on immediately — name real programs, competitions, or organizations
+5. Each pathway must tell a different story about who this student could become
 `
 }

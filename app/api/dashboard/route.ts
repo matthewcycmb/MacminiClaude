@@ -19,6 +19,7 @@ function computeFitScore(
     sat75thPercentile: number | null
     act25thPercentile: number | null
     act75thPercentile: number | null
+    acceptanceRate: number | null
     strongPrograms: string[]
   }
 ): number {
@@ -68,27 +69,72 @@ function computeFitScore(
     score = (score / (factors * (100 / 3))) * 100
   }
 
-  return Math.round(Math.min(score, 100))
+  let rawScore = Math.round(Math.min(score, 100))
+
+  // Apply acceptance-rate ceiling so fit scores stay realistic
+  if (college.acceptanceRate != null) {
+    let ceiling = 100
+    if (college.acceptanceRate < 10) ceiling = 40
+    else if (college.acceptanceRate < 20) ceiling = 55
+    else if (college.acceptanceRate < 40) ceiling = 75
+    rawScore = Math.min(rawScore, ceiling)
+  }
+
+  return rawScore
 }
 
 // Helper: Categorize a college as reach/target/safety
 function categorizeCollege(
-  profile: { gpa: number | null; gpaScale: number | null },
-  college: { gpa25thPercentile: number | null; gpa75thPercentile: number | null; acceptanceRate: number | null }
+  profile: {
+    gpa: number | null
+    gpaScale: number | null
+    satScore: number | null
+    actScore: number | null
+  },
+  college: {
+    gpa25thPercentile: number | null
+    gpa75thPercentile: number | null
+    sat25thPercentile: number | null
+    sat75thPercentile: number | null
+    act25thPercentile: number | null
+    act75thPercentile: number | null
+    acceptanceRate: number | null
+  }
 ): string {
-  if (college.acceptanceRate && college.acceptanceRate < 10) return "reach"
+  const rate = college.acceptanceRate
+  const userGPA = profile.gpa
+    ? profile.gpaScale === 5.0 ? (profile.gpa / 5.0) * 4.0 : profile.gpa
+    : null
 
-  if (profile.gpa && college.gpa25thPercentile && college.gpa75thPercentile) {
-    const userGPA = profile.gpaScale === 5.0 ? (profile.gpa / 5.0) * 4.0 : profile.gpa
-    if (userGPA < college.gpa25thPercentile) return "reach"
-    if (userGPA >= college.gpa75thPercentile) return "safety"
+  const testAbove75 =
+    (profile.satScore && college.sat75thPercentile && profile.satScore >= college.sat75thPercentile) ||
+    (profile.actScore && college.act75thPercentile && profile.actScore >= college.act75thPercentile)
+  const gpaAbove75 = userGPA && college.gpa75thPercentile && userGPA >= college.gpa75thPercentile
+  const gpaAbove25 = userGPA && college.gpa25thPercentile && userGPA >= college.gpa25thPercentile
+
+  // Under 15% acceptance = always reach
+  if (rate != null && rate < 15) return "reach"
+  // 15-30%: reach by default, target only if GPA AND tests above 75th
+  if (rate != null && rate < 30) {
+    if (gpaAbove75 && testAbove75) return "target"
+    return "reach"
+  }
+  // 30-50%: target by default, safety only if GPA AND tests above 75th
+  if (rate != null && rate < 50) {
+    if (gpaAbove75 && testAbove75) return "safety"
+    return "target"
+  }
+  // 50%+: safety if GPA above 25th, otherwise target
+  if (rate != null && rate >= 50) {
+    if (gpaAbove25) return "safety"
     return "target"
   }
 
-  if (college.acceptanceRate) {
-    if (college.acceptanceRate < 15) return "reach"
-    if (college.acceptanceRate < 40) return "target"
-    return "safety"
+  // Fallback when no acceptance rate data
+  if (userGPA && college.gpa25thPercentile && college.gpa75thPercentile) {
+    if (userGPA < college.gpa25thPercentile) return "reach"
+    if (gpaAbove75 && testAbove75) return "safety"
+    return "target"
   }
 
   return "target"
@@ -152,6 +198,51 @@ function generateCollegeInsight(
   }
 
   return `Research their ${college.strongPrograms.slice(0, 2).join(" and ")} programs to find opportunities that align with your ${narrativeTheme} goals.`
+}
+
+// Helper: Generate a brief admissions officer perspective per college
+function generateOfficerTake(
+  profile: {
+    gpa: number | null
+    gpaScale: number | null
+    satScore: number | null
+    actScore: number | null
+    intendedMajors: string[]
+  },
+  college: {
+    acceptanceRate: number | null
+    gpa75thPercentile: number | null
+    strongPrograms: string[]
+  },
+  category: string
+): string {
+  const userGPA = profile.gpa
+    ? profile.gpaScale === 5.0 ? (profile.gpa / 5.0) * 4.0 : profile.gpa
+    : null
+  const gpaStrong = userGPA && college.gpa75thPercentile && userGPA >= college.gpa75thPercentile
+  const rateStr = college.acceptanceRate ? `${college.acceptanceRate}%` : "very low"
+
+  const userMajors = (profile.intendedMajors || []).map((m) => m.toLowerCase())
+  const hasMatch = college.strongPrograms.some((p) =>
+    userMajors.some((m) => p.toLowerCase().includes(m) || m.includes(p.toLowerCase()))
+  )
+
+  if (category === "reach" && gpaStrong) {
+    return `Your academics are competitive, but at ${rateStr} acceptance, you'll need standout essays and a compelling narrative to differentiate yourself.`
+  }
+  if (category === "reach") {
+    return `This is a significant stretch at ${rateStr} acceptance. Focus on demonstrating genuine interest and a unique perspective in your application.`
+  }
+  if (category === "target" && hasMatch) {
+    return `Good match for your interests. Your profile sits within their admitted student range — a strong application should make you competitive here.`
+  }
+  if (category === "target") {
+    return `You're in the running here. Tailor your essays to show why this specific school fits your goals, and you'll be a solid contender.`
+  }
+  if (hasMatch) {
+    return `You're well-positioned academically, and their ${college.strongPrograms[0]} program aligns with your interests. Show genuine enthusiasm in your application.`
+  }
+  return `You're well-positioned here. Use your application to show why this school specifically fits your goals — don't treat it as a backup in your essays.`
 }
 
 export async function GET() {
@@ -395,6 +486,7 @@ export async function GET() {
       fitScore: number
       aiInsight: string
       strongPrograms: string[]
+      officerTake: string
     }
 
     // Start with user's saved colleges
@@ -410,16 +502,17 @@ export async function GET() {
         fitScore: computeFitScore(profileData, sc.College),
         aiInsight: generateCollegeInsight(profileData, sc.College, narrativeTheme, category),
         strongPrograms: sc.College.strongPrograms,
+        officerTake: generateOfficerTake(profileData, sc.College, category),
       }
     })
 
     // Sort by fit score descending
     collegeInsights.sort((a, b) => b.fitScore - a.fitScore)
 
-    // If fewer than 4, supplement with recommendations
-    if (collegeInsights.length < 4 && profile) {
+    // If fewer than 3, supplement with recommendations
+    if (collegeInsights.length < 3 && profile) {
       const alreadyAddedIds = new Set(colleges.map((sc) => sc.collegeId))
-      const allColleges = await prisma.college.findMany()
+      const allColleges = await prisma.college.findMany({ take: 50 })
       const candidates = allColleges
         .filter((c) => !alreadyAddedIds.has(c.id))
         .map((c) => {
@@ -434,18 +527,19 @@ export async function GET() {
             fitScore: computeFitScore(profileData, c),
             aiInsight: generateCollegeInsight(profileData, c, narrativeTheme, category),
             strongPrograms: c.strongPrograms,
+            officerTake: generateOfficerTake(profileData, c, category),
           }
         })
         .sort((a, b) => b.fitScore - a.fitScore)
 
       for (const candidate of candidates) {
-        if (collegeInsights.length >= 4) break
+        if (collegeInsights.length >= 3) break
         collegeInsights.push(candidate)
       }
     }
 
-    // Take top 4
-    collegeInsights = collegeInsights.slice(0, 4)
+    // Take top 3
+    collegeInsights = collegeInsights.slice(0, 3)
 
     return NextResponse.json({
       user: {

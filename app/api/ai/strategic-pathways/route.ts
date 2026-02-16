@@ -28,6 +28,7 @@ export async function GET() {
       where: { email: session.user.email },
       include: {
         profile: true,
+        courses: true,
         StudentCollege: {
           include: {
             College: true,
@@ -94,8 +95,21 @@ export async function GET() {
       })
     }
 
-    // Build context
-    const userContext = buildStrategicPathwaysContext(profileData, colleges)
+    // Build enriched context with courses, honors, awards, leadership
+    const courseData = (user.courses || []).map((c) => ({
+      name: c.name,
+      type: c.type,
+      letterGrade: c.letterGrade,
+      percentage: c.percentage,
+    }))
+    const userContext = buildStrategicPathwaysContext(
+      profileData,
+      colleges,
+      courseData,
+      user.profile.honors || [],
+      user.profile.awards || [],
+      user.profile.leadership || []
+    )
 
     console.log("Generating strategic pathways for:", {
       grade: profileData.gradeLevel,
@@ -110,7 +124,7 @@ export async function GET() {
 
     const message = await anthropic.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 1536,
+      max_tokens: 4096,
       system: [
         {
           type: "text",
@@ -133,6 +147,24 @@ export async function GET() {
     const duration = Date.now() - startTime
     console.log(`Strategic pathways generated in ${duration}ms`)
 
+    // Check if the response was truncated
+    if (message.stop_reason === "max_tokens") {
+      console.error("Strategic pathways response was truncated (max_tokens reached)")
+      // Fall back to mock data on truncation
+      return NextResponse.json({
+        success: true,
+        pathways: getMockPathways(profileData),
+        colleges: userColleges,
+        profile: {
+          name: user.name,
+          intendedMajors: profileData.intendedMajors,
+          careerInterests: profileData.careerInterests,
+          gradeLevel: profileData.gradeLevel,
+        },
+        _truncated: true,
+      })
+    }
+
     // Parse AI response
     const content = message.content[0]
     if (content.type !== "text") {
@@ -150,7 +182,7 @@ export async function GET() {
       if (match) jsonText = match[1].trim()
     }
 
-    if (!jsonText.startsWith("{")) {
+    if (!jsonText.startsWith("{") && !jsonText.startsWith("[")) {
       const match = jsonText.match(/\{[\s\S]*\}/)
       if (match) jsonText = match[0]
     }
@@ -161,14 +193,29 @@ export async function GET() {
     } catch (parseError) {
       console.error("JSON parse error:", parseError)
       console.error("Failed JSON:", jsonText.substring(0, 1000))
-      throw new Error(
-        `Failed to parse Claude's response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`
-      )
+      // Fall back to mock data instead of crashing
+      return NextResponse.json({
+        success: true,
+        pathways: getMockPathways(profileData),
+        colleges: userColleges,
+        profile: {
+          name: user.name,
+          intendedMajors: profileData.intendedMajors,
+          careerInterests: profileData.careerInterests,
+          gradeLevel: profileData.gradeLevel,
+        },
+        _parseError: true,
+      })
     }
+
+    // Handle multiple response formats: {pathways: [...]}, [...], or direct pathway objects
+    const extractedPathways = Array.isArray(pathwaysData)
+      ? pathwaysData
+      : pathwaysData.pathways || []
 
     return NextResponse.json({
       success: true,
-      pathways: pathwaysData.pathways,
+      pathways: extractedPathways,
       colleges: userColleges,
       profile: {
         name: user.name,

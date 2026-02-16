@@ -314,9 +314,6 @@ export default function AcademicsPage() {
               >
                 Add Grade
               </button>
-              <button className="px-6 py-2.5 rounded-2xl glass-card font-bold text-sm hover:bg-white/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-green focus-visible:ring-offset-2">
-                Download Report
-              </button>
             </div>
           </div>
 
@@ -446,18 +443,6 @@ export default function AcademicsPage() {
             </h3>
 
             <div className="space-y-8">
-              {/* Official Transcripts */}
-              <div>
-                <p className="text-[11px] font-bold text-subtle-gray uppercase tracking-widest mb-4">Official Transcripts</p>
-                <div className="space-y-4">
-                  <div className="p-4 rounded-2xl border-2 border-dashed border-black/10 flex flex-col items-center justify-center py-6 group cursor-pointer hover:bg-black/[0.01] transition-colors">
-                    <span className="material-symbols-outlined text-subtle-gray mb-2" aria-hidden="true">add_circle</span>
-                    <span className="text-[11px] font-bold text-subtle-gray uppercase tracking-widest">Upload Transcript</span>
-                    <span className="text-xs text-subtle-gray mt-1">Coming soon</span>
-                  </div>
-                </div>
-              </div>
-
               {/* Certificates & Awards */}
               <div>
                 <p className="text-[11px] font-bold text-subtle-gray uppercase tracking-widest mb-4">Certificates & Awards</p>

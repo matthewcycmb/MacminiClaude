@@ -4,6 +4,12 @@ import { authOptions } from "@/lib/auth/auth-config"
 import { prisma } from "@/lib/db/prisma"
 import { aiLimiterFree, aiLimiterPremium } from "./limiter"
 
+// In-memory fallback for AI rate limiting when Redis is unavailable
+const memoryAiLimit = new Map<string, { count: number; resetAt: number }>()
+const AI_MEMORY_LIMIT_FREE = 15
+const AI_MEMORY_LIMIT_PREMIUM = 100
+const AI_MEMORY_WINDOW_MS = 24 * 60 * 60 * 1000 // 24 hours
+
 interface RateLimitResult {
   allowed: boolean
   response?: NextResponse
@@ -37,13 +43,34 @@ export async function checkAiLimit(): Promise<RateLimitResult> {
     }
   }
 
-  // If Redis is not configured, allow the request (graceful fallback)
-  if (!aiLimiterFree || !aiLimiterPremium) {
-    return { allowed: true, userId: user.id }
-  }
+  // Try Redis-based rate limiting first
+  let success = true
+  let reset = Date.now() + AI_MEMORY_WINDOW_MS
 
-  const limiter = user.subscriptionTier === "premium" ? aiLimiterPremium : aiLimiterFree
-  const { success, remaining, reset } = await limiter.limit(user.id)
+  if (aiLimiterFree && aiLimiterPremium) {
+    const limiter = user.subscriptionTier === "premium" ? aiLimiterPremium : aiLimiterFree
+    try {
+      const result = await limiter.limit(user.id)
+      success = result.success
+      reset = result.reset
+    } catch {
+      // Redis unavailable — fall back to in-memory rate limiting
+      const limit = user.subscriptionTier === "premium" ? AI_MEMORY_LIMIT_PREMIUM : AI_MEMORY_LIMIT_FREE
+      const now = Date.now()
+      const entry = memoryAiLimit.get(user.id)
+      if (!entry || now > entry.resetAt) {
+        memoryAiLimit.set(user.id, { count: 1, resetAt: now + AI_MEMORY_WINDOW_MS })
+        return { allowed: true, userId: user.id }
+      }
+      entry.count++
+      if (entry.count > limit) {
+        success = false
+        reset = entry.resetAt
+      } else {
+        return { allowed: true, userId: user.id }
+      }
+    }
+  }
 
   if (!success) {
     const retryAfterSeconds = Math.ceil((reset - Date.now()) / 1000)
