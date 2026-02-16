@@ -29,40 +29,6 @@ function getRelativeDueDate(dateStr: string): string {
   return `Due ${dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
 }
 
-function CollegeLogo({ websiteUrl, name }: { websiteUrl: string | null; name: string }) {
-  const [imgError, setImgError] = useState(false)
-
-  let logoUrl: string | null = null
-  if (websiteUrl) {
-    try {
-      const domain = new URL(websiteUrl).hostname.replace(/^www\./, "")
-      logoUrl = `https://logo.clearbit.com/${domain}`
-    } catch {
-      logoUrl = null
-    }
-  }
-
-  if (!logoUrl || imgError) {
-    const initial = (name.charAt(0) || "U").toUpperCase()
-    return (
-      <div className="w-20 h-20 rounded-2xl bg-white border border-black/5 flex items-center justify-center shrink-0 shadow-sm">
-        <span className="text-3xl font-black text-charcoal/30 font-display">{initial}</span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="w-20 h-20 rounded-2xl bg-white border border-black/5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
-      <img
-        src={logoUrl}
-        alt={`${name} logo`}
-        className="w-14 h-14 object-contain"
-        onError={() => setImgError(true)}
-      />
-    </div>
-  )
-}
-
 interface AdmissionReview {
   summary: string
   strengths: string[]
@@ -144,7 +110,6 @@ export default function DashboardPage() {
   const gpaScale = dashboard?.profile?.gpaScale
   const graduationYear = dashboard?.profile?.graduationYear
   const nextMoves = dashboard?.nextMoves || []
-  const collegeInsights = dashboard?.collegeInsights || []
   const userImage = dashboard?.user?.image || session?.user?.image
 
   const subtitle =
@@ -211,80 +176,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
-
-      {/* Recommended Colleges */}
-      {collegeInsights.length > 0 && (
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-6 px-4">
-            <h3 className="text-xl font-black tracking-tight font-display">Recommended Colleges</h3>
-            <Link
-              href="/colleges"
-              className="text-sm font-bold text-black border-b-2 border-black/10 hover:border-black transition-all pb-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-green focus-visible:ring-offset-2"
-            >
-              Explore All Matches
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {collegeInsights.map((college) => (
-              <Link
-                key={college.id}
-                href={`/colleges/${college.id}`}
-                className="glass-card rounded-[32px] overflow-hidden group cursor-pointer hover:border-black/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-green focus-visible:ring-offset-2 block"
-              >
-                {/* Top: Logo + Name + Badge + Fit Score */}
-                <div className="flex items-center gap-4 p-6 pb-4">
-                  <CollegeLogo websiteUrl={college.websiteUrl} name={college.name} />
-                  <div className="flex-grow min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-lg sm:text-xl font-black font-display tracking-tight">
-                        {college.shortName || college.name}
-                      </h4>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-black uppercase tracking-wider shrink-0 ${
-                          college.category === "reach"
-                            ? "bg-accent-green/10 text-accent-green"
-                            : college.category === "target"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-emerald-100 text-emerald-700"
-                        }`}
-                      >
-                        {college.category}
-                      </span>
-                    </div>
-                    {college.location && (
-                      <p className="text-xs text-subtle-gray font-medium mt-0.5">{college.location}</p>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-black text-subtle-gray uppercase tracking-widest">Fit</p>
-                    <p className="text-2xl font-black text-accent-green font-display">{college.fitScore}%</p>
-                  </div>
-                  <span className="material-symbols-outlined text-gray-300 group-hover:text-black transition-colors hidden sm:block" aria-hidden="true">
-                    chevron_right
-                  </span>
-                </div>
-
-                {/* Bottom: Split — AI Insight (left) | Officer's Take (right) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-6 pb-6 pt-3 border-t border-black/5 mx-4">
-                  <div>
-                    <p className="text-xs font-black text-subtle-gray uppercase tracking-widest mb-1.5">AI Insight</p>
-                    <p className="text-sm text-charcoal/70 leading-relaxed">{college.aiInsight}</p>
-                  </div>
-                  <div className="sm:border-l sm:border-black/5 sm:pl-4">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span className="material-symbols-outlined text-[14px] text-subtle-gray" aria-hidden="true">person_check</span>
-                      <p className="text-xs font-black text-subtle-gray uppercase tracking-widest">Officer&apos;s Take</p>
-                    </div>
-                    <p className="text-sm text-charcoal/70 leading-relaxed italic">
-                      &ldquo;{college.officerTake}&rdquo;
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Admission Officer Review */}
       <section className="glass-card rounded-[40px] p-8 mb-8">

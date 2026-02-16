@@ -23,15 +23,16 @@ function checkMemoryRateLimit(identifier: string): { success: boolean; remaining
   return { success: true, remaining: MEMORY_LIMIT - entry.count }
 }
 
-// Periodically clean up expired entries (every 5 minutes)
-setInterval(() => {
+// Clean up expired entries on each request (lightweight — only iterates when map has entries)
+function cleanupExpired() {
   const now = Date.now()
   for (const [key, entry] of memoryRateLimit) {
     if (now > entry.resetAt) memoryRateLimit.delete(key)
   }
-}, 300_000)
+}
 
 export async function middleware(request: NextRequest) {
+  cleanupExpired()
   // Only rate limit API routes (excluding auth)
   if (
     !request.nextUrl.pathname.startsWith("/api") ||
